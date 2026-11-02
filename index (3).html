@@ -1,0 +1,559 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>정상파 실험실</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+/* Layout: 실험 탭 → 무대(캔버스) → 조작판 | 측정값 → 관찰 포인트. 실험대 위 장비 패널 느낌 */
+:root{
+  --bg:#e9eef0; --panel:#ffffff; --panel2:#f4f7f8; --ink:#14232b; --muted:#5a6b74; --line:#cbd6db;
+  --stage:#fbfcfc; --grid:#e3eaed;
+  --w1:#e0573a; --w2:#2b7bd1; --w3:#8a5cf0; --sum:#14232b; --node:#0e9a86; --anti:#c2410c; --accent:#0e7c6e; --accent-ink:#ffffff;
+  --water:#9cc9e6; --tube:#dfeaf0; --hi:#fff1c2;
+  --f-body:"IBM Plex Sans KR","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+  --r:10px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0d151a; --panel:#152129; --panel2:#1b2a33; --ink:#e3edf1; --muted:#93a5ae; --line:#2b3c46;
+  --stage:#101b21; --grid:#1f2f38;
+  --w1:#ff7a59; --w2:#5aa5f5; --sum:#e3edf1; --node:#2fd1b6; --anti:#ffa65c; --accent:#2fc2ad; --accent-ink:#06211c;
+  --water:#2c5d80; --tube:#1c2d38; --hi:#3d3415; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0d151a; --panel:#152129; --panel2:#1b2a33; --ink:#e3edf1; --muted:#93a5ae; --line:#2b3c46;
+  --stage:#101b21; --grid:#1f2f38;
+  --w1:#ff7a59; --w2:#5aa5f5; --sum:#e3edf1; --node:#2fd1b6; --anti:#ffa65c; --accent:#2fc2ad; --accent-ink:#06211c;
+  --water:#2c5d80; --tube:#1c2d38; --hi:#3d3415; color-scheme:dark}
+*{box-sizing:border-box}
+html,body{margin:0}
+img{max-width:100%}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.55}
+.wrap{max-width:1180px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+header.top{padding-block:22px 10px}
+.brand{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px}
+.brand h1{margin:0;font-size:28px;letter-spacing:-.5px;text-wrap:balance}
+.brand h1 span{color:var(--accent)}
+.brand p{margin:2px 0 0;color:var(--muted);font-size:13px}
+.btn{font:inherit;font-size:14px;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:8px;padding:7px 12px;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+.btn:hover{border-color:var(--accent)}
+.btn:focus-visible,.tab:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.btn.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:600}
+nav.tabs{display:flex;gap:6px;overflow-x:auto;padding-block:6px 14px;scrollbar-width:thin}
+.tab{flex:none;font:inherit;font-size:14px;border:1px solid var(--line);background:var(--panel);color:var(--muted);border-radius:999px;padding:7px 14px;cursor:pointer;white-space:nowrap}
+.tab b{font-family:var(--f-mono);margin-right:6px;color:var(--accent)}
+.tab[aria-selected="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.tab[aria-selected="true"] b{color:var(--bg)}
+main{padding-block:0 40px}
+.exp-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 14px;margin-bottom:10px}
+.exp-head h2{margin:0;font-size:21px;text-wrap:balance}
+.exp-head p{margin:0;color:var(--muted);font-size:14px;max-width:70ch}
+.stage{background:var(--stage);border:1px solid var(--line);border-radius:var(--r);position:relative;overflow:hidden}
+.stage canvas{display:block;width:100%}
+.stage .hud{position:absolute;left:12px;top:10px;font-family:var(--f-mono);font-size:12.5px;color:var(--muted);pointer-events:none}
+.stage .hint{position:absolute;right:12px;top:10px;font-size:12px;color:var(--muted);pointer-events:none}
+.bar{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}
+.grid2{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:14px;margin-top:4px}
+@media (max-width:760px){.grid2{grid-template-columns:1fr}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;min-width:0}
+.card h3{margin:0 0 10px;font-size:13px;letter-spacing:.06em;color:var(--muted);font-weight:600}
+.ctl{display:grid;grid-template-columns:7.5em minmax(0,1fr) 6.5em;align-items:center;gap:8px;margin:8px 0}
+.ctl label{font-size:14px}
+.ctl output{font-family:var(--f-mono);font-size:13.5px;text-align:right;font-variant-numeric:tabular-nums}
+input[type=range]{width:100%;accent-color:var(--accent)}
+select{font:inherit;font-size:14px;padding:5px 8px;border-radius:7px;border:1px solid var(--line);background:var(--panel2);color:var(--ink)}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg button{font:inherit;font-size:13.5px;border:0;background:var(--panel);color:var(--muted);padding:6px 12px;cursor:pointer}
+.seg button.on{background:var(--ink);color:var(--bg)}
+.nrow{display:flex;flex-wrap:wrap;gap:6px}
+.nbtn{font-family:var(--f-mono);font-size:13px;min-width:44px;border:1px solid var(--line);background:var(--panel2);color:var(--ink);border-radius:7px;padding:5px 8px;cursor:pointer}
+.nbtn.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.kv{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 12px;font-size:14px}
+.kv dt{color:var(--muted)}
+.kv dd{margin:0;font-family:var(--f-mono);text-align:right;font-variant-numeric:tabular-nums;font-weight:500}
+.kv dd.big{font-size:16px;font-weight:600;color:var(--accent)}
+.formula{margin-top:12px;padding:9px 12px;background:var(--panel2);border-radius:8px;font-family:var(--f-mono);font-size:13.5px;overflow-x:auto}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.chip{font-family:var(--f-mono);font-size:12.5px;border:1px dashed var(--line);border-radius:999px;padding:3px 10px;background:transparent;color:var(--ink);cursor:pointer}
+.chip.on{border-style:solid;border-color:var(--accent);color:var(--accent);font-weight:600}
+.notes{margin-top:14px}
+.notes ul{margin:0;padding-left:20px}
+.notes li{margin:4px 0;max-width:80ch}
+.tag{display:inline-block;font-size:11.5px;font-weight:600;padding:1px 8px;border-radius:999px;border:1px solid var(--line);color:var(--muted);margin-right:6px}
+.status{font-weight:600}
+.status.res{color:var(--node)}
+.status.off{color:var(--muted)}
+.chk{display:inline-flex;align-items:center;gap:6px;font-size:14px;margin-right:12px}
+.legend{display:flex;flex-wrap:wrap;gap:12px;font-size:13px;color:var(--muted);margin-top:8px}
+.legend i{display:inline-block;width:18px;height:3px;border-radius:2px;vertical-align:middle;margin-right:5px}
+.tbl{width:100%;border-collapse:collapse;font-size:13.5px;margin-top:8px}
+.tbl th,.tbl td{border-bottom:1px solid var(--line);padding:5px 6px;text-align:right;font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.tbl th{font-family:var(--f-body);color:var(--muted);font-weight:600;font-size:12.5px}
+.tbl td:first-child,.tbl th:first-child{text-align:left}
+.tblwrap{overflow-x:auto}
+.meter{height:14px;border-radius:7px;background:var(--panel2);border:1px solid var(--line);overflow:hidden}
+.meter i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--node),var(--anti))}
+.loud{font-weight:700;color:var(--anti)}
+.exp5{display:grid;grid-template-columns:minmax(0,300px) minmax(0,1fr);gap:14px}
+@media (max-width:760px){.exp5{grid-template-columns:1fr}}
+.small{font-size:12.5px;color:var(--muted)}
+footer{color:var(--muted);font-size:12.5px;padding-block:10px 30px}
+@media (prefers-reduced-motion: reduce){*{scroll-behavior:auto}}
+</style>
+</head>
+<body>
+
+
+<header class="top"><div class="wrap brand">
+  <div><h1>정상파 <span>실험실</span></h1><p>역학과 에너지 Ⅲ · 16 정상파와 악기 — 다섯 가지 실험을 직접 조작해 보세요</p></div>
+  <button class="btn" id="soundBtn" aria-pressed="false">🔈 소리 켜기</button>
+</div></header>
+
+<nav class="tabs wrap" role="tablist" aria-label="실험 선택">
+  <button class="tab" role="tab" data-tab="form"><b>1</b>정상파 형성</button>
+  <button class="tab" role="tab" data-tab="string"><b>2</b>현악기</button>
+  <button class="tab" role="tab" data-tab="open"><b>3</b>개관 악기</button>
+  <button class="tab" role="tab" data-tab="closed"><b>4</b>폐관 악기</button>
+  <button class="tab" role="tab" data-tab="column"><b>5</b>기주 공명</button>
+  <button class="tab" role="tab" data-tab="reflect"><b>6</b>고정단·자유단 반사</button>
+</nav>
+
+<main class="wrap">
+
+<!-- 1. 정상파 형성 -->
+<section class="exp" id="sec-form" hidden>
+  <div class="exp-head"><h2>1. 정상파 형성 실험</h2><p>진동수·진폭이 같은 두 파동이 반대 방향으로 진행해 겹치면 어떻게 되는지 관찰한다.</p></div>
+  <div class="stage"><canvas id="c1" height="330"></canvas><div class="hud" id="hud1"></div></div>
+  <div class="legend"><span><i style="background:var(--w1)"></i>오른쪽으로 가는 파동</span><span><i style="background:var(--w2)"></i>왼쪽으로 가는 파동</span><span><i style="background:var(--sum);height:4px"></i>합성파(정상파)</span><span><i style="background:var(--node);width:8px;height:8px;border-radius:50%"></i>마디</span><span><i style="background:var(--anti);width:8px;height:8px;border-radius:50%"></i>배</span></div>
+  <div class="bar">
+    <button class="btn primary" id="p1">⏸ 일시정지</button>
+    <button class="btn" id="q1">+ T/4 진행</button>
+    <button class="btn" id="r1">↺ 처음으로</button>
+    <div class="seg" id="m1"><button data-v="ends" class="on">양 끝에서 출발</button><button data-v="over">이미 겹친 상태</button></div>
+  </div>
+  <div class="grid2">
+    <div class="card"><h3>조작판</h3>
+      <div class="ctl"><label for="A1">진폭 A</label><input type="range" id="A1" min="0.5" max="2" step="0.1" value="1"><output id="A1o"></output></div>
+      <div class="ctl"><label for="L1">파장 λ</label><input type="range" id="L1" min="1" max="8" step="0.5" value="4"><output id="L1o"></output></div>
+      <div class="ctl"><label for="V1">속력 v</label><input type="range" id="V1" min="0.5" max="2" step="0.25" value="1"><output id="V1o"></output></div>
+      <div class="ctl"><label for="S1">재생 속도</label><input type="range" id="S1" min="0.25" max="2" step="0.25" value="1"><output id="S1o"></output></div>
+      <label class="chk"><input type="checkbox" id="sh1" checked> 두 파동 보기</label>
+      <label class="chk"><input type="checkbox" id="sm1" checked> 합성파 보기</label>
+      <label class="chk"><input type="checkbox" id="en1" checked> 정상파 진폭(점선) 보기</label>
+    </div>
+    <div class="card"><h3>측정값</h3>
+      <dl class="kv" id="kv1"></dl>
+      <div class="formula">v = fλ · 정상파 최대 진폭 = 2A · 마디–마디 = λ/2</div>
+    </div>
+  </div>
+  <div class="card notes"><h3>관찰 포인트</h3><ul>
+    <li>‘+ T/4 진행’을 눌러 보자. 최대 → <b>일직선</b> → 뒤집힌 최대 → 일직선 → 처음 모양이 반복된다.</li>
+    <li>일직선인 순간에도 빨강·파랑 파동은 그대로 있다. 합쳐진 <b>변위만 0</b>이다.</li>
+    <li>마디(초록 점)와 배(주황 점)는 시간이 지나도 <b>제자리</b>에 있다. 마디 사이 간격은 λ/2이다.</li>
+    <li>정상파의 파장·진동수는 원래 파동과 같고, 배의 진폭은 2A이다.</li>
+  </ul></div>
+</section>
+
+<!-- 2. 현악기 -->
+<section class="exp" id="sec-string" hidden>
+  <div class="exp-head"><h2>2. 현악기 정상파 형성 실험</h2><p>양 끝이 고정된 줄을 진동시켜 정상파를 만든다. 양 끝은 항상 마디이다.</p></div>
+  <div class="stage"><canvas id="c2" height="280"></canvas><div class="hud" id="hud2"></div><div class="hint">화면의 진동은 실제보다 느리게 보여 준다</div></div>
+  <div class="bar">
+    <button class="btn primary" id="go2" style="min-width:7.5em;justify-content:center">⏸ 일시정지</button><button class="btn" id="rs2">↺ 초기화</button><label class="chk"><input type="checkbox" id="cp2"> 두 파동 보기 (입사파·반사파)</label><label class="chk"><input type="checkbox" id="sm2" checked> 합성파 보기</label><label class="chk"><input type="checkbox" id="en2" checked> 정상파 진폭(점선) 보기</label><label class="chk">속도 <select id="sp2"><option value="1">1×</option><option value="0.5">0.5×</option><option value="0.25">0.25×</option><option value="0.1">0.1×</option></select></label>
+    <div class="seg" id="m2"><button data-v="n" class="on">배수 고르기</button><button data-v="f">진동수 조절 (공명 찾기)</button></div>
+  </div>
+  <div class="grid2">
+    <div class="card"><h3>조작판</h3>
+      <div class="ctl"><label for="L2">줄 길이 L</label><input type="range" id="L2" min="0.3" max="1.2" step="0.05" value="0.65"><output id="L2o"></output></div>
+      <div class="ctl"><label for="T2">장력</label><input type="range" id="T2" min="20" max="200" step="5" value="80"><output id="T2o"></output></div>
+      <div class="ctl"><label for="M2">줄 종류</label><select id="M2"><option value="0.001">가는 줄 (1 g/m)</option><option value="0.004">굵은 줄 (4 g/m)</option></select><output></output></div>
+      <div id="nbox2"><div class="small" style="margin:10px 0 6px">진동 배수 n (= 배의 개수)</div><div class="nrow" id="n2"></div></div>
+      <div id="fbox2" hidden><div class="ctl"><label for="F2">진동수 f</label><input type="range" id="F2" min="10" max="1500" step="0.5" value="150"><output id="F2o"></output></div>
+        <div class="bar"><button class="btn" id="fp2">◀ 이전 공명</button><button class="btn" id="fn2">다음 공명 ▶</button></div></div>
+    </div>
+    <div class="card"><h3>측정값</h3>
+      <dl class="kv" id="kv2"></dl>
+      <div class="formula">L = (λ/2)·n → λₙ = 2L/n,  fₙ = v/λₙ = (v/2L)·n</div>
+      <div class="small" style="margin-top:10px">고유 진동수 (누르면 그 진동수로 맞춘다)</div>
+      <div class="chips" id="ch2"></div>
+    </div>
+  </div>
+  <div class="card notes"><h3>관찰 포인트</h3><ul>
+    <li>‘입사파·반사파 보기’를 켜면 왼쪽에서 들어간 파동(파랑)이 오른쪽 끝에서 <b>고정단 반사</b>되어 <b>뒤집힌 채</b> 돌아오고(보라), 둘이 겹쳐 정상파(빨강)가 만들어지는 과정이 처음부터 천천히 보인다. 끝에서는 늘 상쇄 → 마디.</li>
+    <li><b>고리(배) 개수 = n</b>. 고리 하나가 반파장이므로 λ = 2L/n이다.</li>
+    <li>줄 길이만 바꾸면 줄의 파동 속력 v는 그대로이다. 장력이나 줄 종류를 바꾸면 v가 바뀐다.</li>
+    <li>진동수 조절 모드에서 고유 진동수에 맞을 때만 크게 진동한다(공명). 사이 값에서는 거의 진동하지 않는다.</li>
+    <li>소리의 진동수는 줄의 진동수와 같지만, <b>공기 중 소리의 파장</b>은 340 ÷ f로 줄의 파장과 다르다.</li>
+  </ul></div>
+</section>
+
+<!-- 3. 개관 -->
+<section class="exp" id="sec-open" hidden>
+  <div class="exp-head"><h2>3. 개관 악기 정상파 형성 실험</h2><p>양쪽 끝이 열린 관. 열린 끝은 공기가 가장 크게 움직이는 배가 된다.</p></div>
+  <div class="stage"><canvas id="c3" height="290"></canvas><div class="hud" id="hud3"></div><div class="hint" id="hint3"></div></div>
+  <div class="bar"><button class="btn primary" id="go3" style="min-width:7.5em;justify-content:center">⏸ 일시정지</button><button class="btn" id="rs3">↺ 초기화</button><label class="chk"><input type="checkbox" id="cp3"> 두 파동 보기 (입사파·반사파)</label><label class="chk"><input type="checkbox" id="sm3" checked> 합성파 보기</label><label class="chk"><input type="checkbox" id="en3" checked> 정상파 진폭(점선) 보기</label><label class="chk">속도 <select id="sp3"><option value="1">1×</option><option value="0.5">0.5×</option><option value="0.25">0.25×</option><option value="0.1">0.1×</option></select></label><div class="seg" id="m3"><button data-v="n" class="on">배수 고르기</button><button data-v="f">진동수 조절 (공명 찾기)</button></div>
+    <div class="seg" id="vw3"><button data-v="trans" class="on">횡파로 보기</button><button data-v="long">종파로 보기</button><button data-v="both">함께 보기</button></div></div>
+  <div class="small" id="vn3" style="margin:-2px 0 10px"></div>
+  <div class="grid2">
+    <div class="card"><h3>조작판</h3>
+      <div class="ctl"><label for="L3">관 길이 L</label><input type="range" id="L3" min="0.2" max="1" step="0.05" value="0.5"><output id="L3o"></output></div>
+      <div class="ctl"><label for="K3">공기 온도</label><input type="range" id="K3" min="0" max="35" step="1" value="15"><output id="K3o"></output></div>
+      <div id="nbox3"><div class="small" style="margin:10px 0 6px">진동 배수 n</div><div class="nrow" id="n3"></div></div>
+      <div id="fbox3" hidden><div class="ctl"><label for="F3">진동수 f</label><input type="range" id="F3" min="50" max="3000" step="1" value="300"><output id="F3o"></output></div>
+        <div class="bar"><button class="btn" id="fp3">◀ 이전 공명</button><button class="btn" id="fn3">다음 공명 ▶</button></div></div>
+    </div>
+    <div class="card"><h3>측정값</h3><dl class="kv" id="kv3"></dl>
+      <div class="formula">L = (λ/2)·n → λₙ = 2L/n,  fₙ = (V/2L)·n   (n = 1, 2, 3, …)</div>
+      <div class="small" style="margin-top:10px">고유 진동수</div><div class="chips" id="ch3"></div></div>
+  </div>
+  <div class="card notes"><h3>관찰 포인트</h3><ul>
+    <li>‘입사파·반사파 보기’를 켜면 왼쪽에서 들어간 음파(파랑)가 오른쪽 열린 끝에서 <b>자유단 반사</b>되어 <b>그대로</b> 돌아오고(보라), 둘이 겹쳐 정상파(빨강)가 만들어지는 과정이 보인다. 열린 끝에서는 보강 → 배.</li>
+    <li>양 끝이 모두 <b>배</b>이다. 기본 진동은 가운데에 마디 하나 → λ = 2L.</li>
+    <li>n = 1, 2, 3, … 모든 정수 배수가 생긴다. 같은 길이의 줄과 파장 관계가 같다.</li>
+    <li>온도를 올리면 음속 V가 커져 같은 n에서 진동수가 높아진다. 파장은 관 길이로 정해지므로 그대로이다.</li>
+  </ul></div>
+</section>
+
+<!-- 4. 폐관 -->
+<section class="exp" id="sec-closed" hidden>
+  <div class="exp-head"><h2>4. 폐관 악기 정상파 형성 실험</h2><p>한쪽 끝이 막힌 관. 열린 끝은 배, 막힌 끝은 공기가 움직이지 못하는 마디가 된다.</p></div>
+  <div class="stage"><canvas id="c4" height="290"></canvas><div class="hud" id="hud4"></div><div class="hint" id="hint4"></div></div>
+  <div class="bar"><button class="btn primary" id="go4" style="min-width:7.5em;justify-content:center">⏸ 일시정지</button><button class="btn" id="rs4">↺ 초기화</button><label class="chk"><input type="checkbox" id="cp4"> 두 파동 보기 (입사파·반사파)</label><label class="chk"><input type="checkbox" id="sm4" checked> 합성파 보기</label><label class="chk"><input type="checkbox" id="en4" checked> 정상파 진폭(점선) 보기</label><label class="chk">속도 <select id="sp4"><option value="1">1×</option><option value="0.5">0.5×</option><option value="0.25">0.25×</option><option value="0.1">0.1×</option></select></label><div class="seg" id="m4"><button data-v="n" class="on">배수 고르기</button><button data-v="f">진동수 조절 (공명 찾기)</button></div>
+    <div class="seg" id="vw4"><button data-v="trans" class="on">횡파로 보기</button><button data-v="long">종파로 보기</button><button data-v="both">함께 보기</button></div></div>
+  <div class="small" id="vn4" style="margin:-2px 0 10px"></div>
+  <div class="grid2">
+    <div class="card"><h3>조작판</h3>
+      <div class="ctl"><label for="L4">관 길이 L</label><input type="range" id="L4" min="0.2" max="1" step="0.05" value="0.5"><output id="L4o"></output></div>
+      <div class="ctl"><label for="K4">공기 온도</label><input type="range" id="K4" min="0" max="35" step="1" value="15"><output id="K4o"></output></div>
+      <div id="nbox4"><div class="small" style="margin:10px 0 6px">진동 배수 n (홀수만 가능)</div><div class="nrow" id="n4"></div></div>
+      <div id="fbox4" hidden><div class="ctl"><label for="F4">진동수 f</label><input type="range" id="F4" min="50" max="3000" step="1" value="200"><output id="F4o"></output></div>
+        <div class="bar"><button class="btn" id="fp4">◀ 이전 공명</button><button class="btn" id="fn4">다음 공명 ▶</button></div></div>
+    </div>
+    <div class="card"><h3>측정값</h3><dl class="kv" id="kv4"></dl>
+      <div class="formula">L = (λ/4)·n → λₙ = 4L/n,  fₙ = (V/4L)·n   (n = 1, 3, 5, …)</div>
+      <div class="small" style="margin-top:10px">고유 진동수</div><div class="chips" id="ch4"></div></div>
+  </div>
+  <div class="card notes"><h3>관찰 포인트</h3><ul>
+    <li>‘입사파·반사파 보기’를 켜면 왼쪽에서 들어간 음파(파랑)가 오른쪽 막힌 끝에서 <b>고정단 반사</b>되어 <b>뒤집힌 채</b> 돌아오고(보라), 둘이 겹쳐 정상파(빨강)가 만들어지는 과정이 보인다. 막힌 끝은 마디, 열린 끝은 배.</li>
+    <li>배에서 시작해 마디로 끝나므로 <b>반 고리(λ/4)</b> 단위로 센다. 기본 진동 λ = 4L.</li>
+    <li>반 고리가 홀수 개여야 하므로 n = 1, 3, 5, …만 생긴다. 진동수 조절 모드에서 2f₁ 근처를 지나도 공명하지 않는다.</li>
+    <li>같은 길이의 개관과 비교하면 기본 진동수가 절반 → 한 옥타브 낮은 소리.</li>
+  </ul></div>
+</section>
+
+<!-- 5. 기주 공명 -->
+<section class="exp" id="sec-column" hidden>
+  <div class="exp-head"><h2>5. 기주 공명 실험</h2><p>소리굽쇠를 울리면서 물통을 내려 수면 위치를 바꾼다. 소리가 크게 들리는 위치를 기록해 파장과 음속을 구한다.</p></div>
+  <div class="exp5">
+    <div class="stage"><canvas id="c5" height="520"></canvas><div class="hud" id="hud5"></div></div>
+    <div style="display:grid;gap:14px;min-width:0">
+      <div class="card"><h3>조작판</h3>
+        <div class="ctl"><label for="F5">소리굽쇠</label><select id="F5"><option value="512">512 Hz</option><option value="680">680 Hz</option><option value="440">440 Hz</option><option value="u">진동수를 모르는 소리굽쇠</option></select><output></output></div>
+        <div class="ctl"><label for="K5">공기 온도</label><input type="range" id="K5" min="0" max="35" step="1" value="15"><output id="K5o"></output></div>
+        <div class="ctl"><label for="Y5">수면 깊이 y</label><input type="range" id="Y5" min="0" max="95" step="0.1" value="2"><output id="Y5o"></output></div>
+        <div class="bar"><button class="btn primary" id="auto5">▼ 물통 천천히 내리기</button><button class="btn" id="rec5">● 이 위치 기록</button><button class="btn" id="clr5">기록 지우기</button></div>
+        <div class="bar" style="align-items:center"><label class="chk"><input type="checkbox" id="ar5"> 공명 위치 자동 기록</label><label class="chk">물통 속도 <select id="vs5"><option value="0.5">0.5 cm/s (아주 느리게)</option><option value="1">1 cm/s</option><option value="2" selected>2 cm/s</option><option value="4">4 cm/s</option><option value="8">8 cm/s (빠르게)</option></select></label></div>
+        <div class="small" style="margin:6px 0 4px">소리 세기</div>
+        <div class="meter"><i id="mtr5"></i></div>
+        <div id="st5" class="small" style="margin-top:6px"></div>
+      </div>
+      <div class="card"><h3>기록표</h3>
+        <div class="tblwrap"><table class="tbl"><thead><tr><th>순서</th><th>y (cm)</th><th>이웃 차 Δy</th><th>λ = 2Δy</th></tr></thead><tbody id="tb5"></tbody></table></div>
+        <dl class="kv" id="kv5" style="margin-top:12px"></dl>
+        <div class="bar"><button class="btn" id="ans5" hidden>정답 확인</button></div>
+      </div>
+    </div>
+  </div>
+  <div class="card notes"><h3>관찰 포인트</h3><ul>
+    <li>관 입구는 <b>배</b>, 수면은 항상 <b>마디</b>이다. 공명할 때마다 정상파가 반파장씩 늘어난다.</li>
+    <li>소리가 크게 들리는 위치 사이 간격 = <b>λ/2</b>. 그래서 λ = 2(yₙ₊₁ − yₙ), v = 2f(yₙ₊₁ − yₙ).</li>
+    <li>첫 위치 y₁은 λ/4보다 조금 짧다. 관 입구 바깥에 배가 생기기 때문(끝 보정)이다. 그래서 <b>차</b>로 계산한다.</li>
+    <li>같은 소리굽쇠면 몇 번째 공명이든 들리는 소리의 진동수는 같다.</li>
+  </ul></div>
+</section>
+<!-- 6. 반사 -->
+<section class="exp" id="sec-reflect" hidden>
+  <div class="exp-head"><h2>6. 고정단 반사와 자유단 반사</h2><p>펄스 하나를 끝으로 보내 반사되는 모습을 천천히 비교한다. 아래에서는 굵은 줄과 가는 줄을 이어 연결점에서의 반사와 투과를 본다.</p></div>
+  <div id="rf6"></div>
+  <div id="rf6b" style="margin-top:14px"></div>
+  <div class="card notes"><h3>관찰 포인트</h3><ul>
+    <li><b>고정단 반사</b>: 끝이 움직이지 못한다 → 반사파가 <b>뒤집혀서</b>(위상 반대) 돌아온다. 끝에서는 입사파와 반사파가 항상 상쇄 → <b>마디</b>.</li>
+    <li><b>자유단 반사</b>: 끝이 자유롭게 움직인다 → 반사파가 <b>그대로</b>(같은 위상) 돌아온다. 끝에서는 보강 → <b>배</b>.</li>
+    <li>줄의 양 끝·폐관의 막힌 끝은 고정단, 관의 열린 끝은 자유단이다(공기의 진동 변위 기준).</li>
+    <li>반사파의 속력·파장·진동수는 입사파와 같다. 바뀌는 것은 뒤집히는지(위상)뿐이다.</li>
+    <li><b>가는 줄 → 굵은 줄</b>: 연결점이 잘 안 움직여 고정단 반사처럼 반사파가 <b>뒤집힌다</b>. 굵은 줄로 넘어간 투과파는 느려져 폭(파장)이 <b>좁아진다</b>.</li>
+    <li><b>굵은 줄 → 가는 줄</b>: 연결점이 쉽게 움직여 자유단 반사처럼 반사파가 <b>그대로</b> 돌아온다. 가는 줄로 넘어간 투과파는 빨라져 폭(파장)이 <b>넓어진다</b>.</li>
+    <li>투과파는 어느 경우에도 뒤집히지 않는다. 줄이 바뀌어도 <b>진동수는 그대로</b>이고, 속력과 파장만 바뀐다.</li>
+  </ul></div>
+</section>
+</main>
+<footer class="wrap">화면의 진동 속도는 관찰하기 쉽게 늦췄다. 소리 켜기를 누르면 실제 진동수의 소리가 세기에 맞춰 난다.</footer>
+
+<script>
+(()=>{
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+let C={}; function readColors(){const cs=getComputedStyle(document.documentElement);['bg','panel','ink','muted','line','stage','grid','w1','w2','w3','sum','node','anti','accent','water','tube','hi'].forEach(k=>C[k]=cs.getPropertyValue('--'+k).trim());}
+readColors(); try{matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>setTimeout(readColors,50));}catch(e){}
+new MutationObserver(()=>setTimeout(readColors,30)).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+const FM='"IBM Plex Mono",ui-monospace,monospace', FB='"IBM Plex Sans KR",system-ui,sans-serif';
+function fmt(x,d=2){return Number.isFinite(x)?x.toFixed(d):'—'}
+function setupCanvas(cv){const r=cv.getBoundingClientRect(), dpr=window.devicePixelRatio||1, h=+cv.getAttribute('height');cv.style.height=h+'px';const w=Math.max(200,r.width);cv.width=w*dpr;cv.height=h*dpr;const ctx=cv.getContext('2d');ctx.setTransform(dpr,0,0,dpr,0,0);return {ctx,w,h};}
+function bindRange(id,fmtFn,cb){const el=$('#'+id),o=$('#'+id+'o');const up=()=>{if(o)o.textContent=fmtFn(+el.value);cb&&cb(+el.value)};el.addEventListener('input',up);up();return el;}
+function seg(id,cb){const s=$('#'+id);s.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;s.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));cb(b.dataset.v);});}
+function kv(el,rows){el.innerHTML=rows.map(([k,v,c])=>`<dt>${k}</dt><dd class="${c||''}">${v}</dd>`).join('');}
+function dot(ctx,x,y,r,col){ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.fillStyle=col;ctx.fill();}
+function label(ctx,t,x,y,col,al='center',font='12px '+FB){ctx.fillStyle=col;ctx.font=font;ctx.textAlign=al;ctx.fillText(t,x,y);}
+
+function mkForm(K,a,ph,sg){const uf=ph/K,inc=u=>u<=uf?a*Math.sin(ph-K*u):null,ref=u=>u>=2-uf?sg*a*Math.sin(ph-K*(2-u)):null;return {uf,inc,ref,sum:u=>{const p=inc(u);if(p===null)return null;const q=ref(u);return p+(q===null?0:q);}};}
+function plotU(ctx,fn,x0,len,y0,col,lw,d){ctx.strokeStyle=col;ctx.lineWidth=lw;ctx.setLineDash(d||[]);ctx.beginPath();let pen=false;for(let i=0;i<=300;i++){const u=i/300,v=fn(u);if(v===null){pen=false;continue;}const x=x0+u*len,y=y0-v;if(!pen){ctx.moveTo(x,y);pen=true;}else ctx.lineTo(x,y);}ctx.stroke();ctx.setLineDash([]);}
+function formStatus(ctx,w,uf,txt){const t=uf<1?'① 입사파가 오른쪽 끝으로 가는 중':uf<2?'② 오른쪽 끝에서 '+txt+' 반사 → 반사파가 돌아오는 중':'③ 입사파 + 반사파 = 정상파 완성';label(ctx,t,w-12,44,uf<2&&uf>=1?C.w3:C.ink,'right','600 13px '+FB);}
+function compLegend(ctx){const items=[[C.w2,'입사파 →'],[C.w3,'← 반사파'],[C.w1,'합성파(정상파)']];let x=12;ctx.font='12px '+FB;ctx.textAlign='left';items.forEach(([c,t])=>{ctx.strokeStyle=c;ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(x,38);ctx.lineTo(x+18,38);ctx.stroke();ctx.fillStyle=C.ink;ctx.fillText(t,x+22,42);x+=22+ctx.measureText(t).width+14;});}
+/* ---------- 소리 ---------- */
+const audio={ctx:null,osc:null,gain:null,on:false};
+function soundSet(f,g){if(!audio.on||!audio.ctx)return;const t=audio.ctx.currentTime;if(f>20&&f<6000){audio.osc.frequency.setTargetAtTime(f,t,0.03);audio.gain.gain.setTargetAtTime(Math.max(0,Math.min(0.25,g)),t,0.05);}else audio.gain.gain.setTargetAtTime(0,t,0.05);}
+$('#soundBtn').addEventListener('click',()=>{
+  try{ if(!audio.ctx){const AC=window.AudioContext||window.webkitAudioContext;audio.ctx=new AC();audio.osc=audio.ctx.createOscillator();audio.gain=audio.ctx.createGain();audio.gain.gain.value=0;audio.osc.type='sine';audio.osc.connect(audio.gain).connect(audio.ctx.destination);audio.osc.start();}
+    audio.on=!audio.on; if(audio.on)audio.ctx.resume(); else audio.gain.gain.setTargetAtTime(0,audio.ctx.currentTime,0.03);
+  }catch(e){audio.on=false;}
+  const b=$('#soundBtn');b.classList.toggle('on',audio.on);b.setAttribute('aria-pressed',audio.on);b.textContent=audio.on?'🔊 소리 끄기':'🔈 소리 켜기';
+});
+
+/* ---------- 1. 정상파 형성 ---------- */
+const E1={s:{A:1,lam:4,v:1,sp:1,mode:'ends',t:0,play:true,show:true,env:true},Lx:8,cv:$('#c1'),
+ init(){const s=this.s;
+  bindRange('A1',v=>v.toFixed(1)+' cm',v=>s.A=v);bindRange('L1',v=>v.toFixed(1)+' m',v=>s.lam=v);bindRange('V1',v=>v.toFixed(2)+' m/s',v=>s.v=v);bindRange('S1',v=>v.toFixed(2)+'×',v=>s.sp=v);
+  $('#sh1').onchange=e=>s.show=e.target.checked;s.sum=true;$('#sm1').onchange=e=>s.sum=e.target.checked;$('#en1').onchange=e=>s.env=e.target.checked;
+  $('#p1').onclick=()=>{s.play=!s.play;$('#p1').textContent=s.play?'⏸ 일시정지':'▶ 재생';};
+  $('#q1').onclick=()=>{s.play=false;$('#p1').textContent='▶ 재생';const q=s.lam/s.v/4;s.t=(Math.round(s.t/q)+1)*q;};
+  $('#r1').onclick=()=>{s.t=0;};
+  seg('m1',v=>{s.mode=v;s.t=0;});},
+ frame(dt){const s=this.s;if(s.play)s.t+=dt*s.sp;this.draw();},
+ draw(){const s=this.s,{ctx,w,h}=this.g||(this.g=setupCanvas(this.cv));ctx.fillStyle=C.stage;ctx.fillRect(0,0,w,h);
+  const L=this.Lx,ml=40,mr=16,y0=h/2+6,sx=(w-ml-mr)/L,sy=(h/2-34)/4.4,X=x=>ml+x*sx,Y=y=>y0-y*sy;
+  ctx.strokeStyle=C.grid;ctx.lineWidth=1;for(let i=0;i<=L;i++){ctx.beginPath();ctx.moveTo(X(i),26);ctx.lineTo(X(i),h-26);ctx.stroke();label(ctx,i+'',X(i),h-10,C.muted,'center','11px '+FM);}
+  for(let k=-4;k<=4;k+=2){ctx.beginPath();ctx.moveTo(ml,Y(k));ctx.lineTo(w-mr,Y(k));ctx.stroke();label(ctx,k+'',ml-6,Y(k)+4,C.muted,'right','11px '+FM);}
+  label(ctx,'위치(m)',w-mr,h-10,C.muted,'right','11px '+FB);
+  ctx.strokeStyle=C.muted;ctx.beginPath();ctx.moveTo(ml,y0);ctx.lineTo(w-mr,y0);ctx.stroke();
+  const k=2*Math.PI/s.lam,om=2*Math.PI*s.v/s.lam,t=s.t,A=s.A,fr1=s.mode==='over'?1e9:s.v*t,fr2=s.mode==='over'?-1e9:L-s.v*t;
+  const y1=x=>x<=fr1?A*Math.sin(om*t-k*x):null, y2=x=>x>=fr2?A*Math.sin(om*t-k*(L-x)):null;
+  const N=600;function plot(fn,col,lw,dash){ctx.strokeStyle=col;ctx.lineWidth=lw;ctx.setLineDash(dash||[]);ctx.beginPath();let pen=false;for(let i=0;i<=N;i++){const x=L*i/N,y=fn(x);if(y===null){pen=false;continue;}if(!pen){ctx.moveTo(X(x),Y(y));pen=true;}else ctx.lineTo(X(x),Y(y));}ctx.stroke();ctx.setLineDash([]);}
+  const lo=Math.max(0,fr2),hi=Math.min(L,fr1),both=hi>lo;
+  if(s.env&&both){const e=x=>(x>=lo&&x<=hi)?2*A*Math.abs(Math.cos(k*(x-L/2))):null;plot(e,C.muted,1,[4,4]);plot(x=>{const v=e(x);return v===null?null:-v},C.muted,1,[4,4]);}
+  if(s.show){plot(y1,C.w1,1.8);plot(y2,C.w2,1.8);}
+  if(both&&s.sum)plot(x=>(x>=lo&&x<=hi)?y1(x)+y2(x):null,C.sum,3);
+  if(both){for(let m=-20;m<=20;m++){const xn=L/2+s.lam/4+m*s.lam/2, xa=L/2+m*s.lam/2;if(xn>=lo&&xn<=hi)dot(ctx,X(xn),y0,4.5,C.node);if(xa>=lo&&xa<=hi)dot(ctx,X(xa),y0,4,C.anti);}}
+  if(s.mode==='ends'){[fr1,fr2].forEach((x,i)=>{if(x>0&&x<L){ctx.strokeStyle=i?C.w2:C.w1;ctx.setLineDash([2,3]);ctx.beginPath();ctx.moveTo(X(x),26);ctx.lineTo(X(x),h-26);ctx.stroke();ctx.setLineDash([]);}});}
+  const T=s.lam/s.v,f=1/T,ph=(t/T)%1;
+  $('#hud1').textContent=`t = ${t.toFixed(2)} s  (= ${(t/T).toFixed(2)} T)`;
+  let cnt=0;if(both)for(let m=-20;m<=20;m++){const xn=L/2+s.lam/4+m*s.lam/2;if(xn>=lo&&xn<=hi)cnt++;}
+  if(!this._k||this._k!==[s.A,s.lam,s.v,Math.floor(t*10)].join()){this._k=[s.A,s.lam,s.v,Math.floor(t*10)].join();
+   kv($('#kv1'),[['진동수 f = v/λ',fmt(f,3)+' Hz'],['주기 T',fmt(T,2)+' s'],['정상파 최대 진폭 (배)',fmt(2*A,1)+' cm','big'],['마디–마디 간격 λ/2',fmt(s.lam/2,2)+' m','big'],['배–마디 간격 λ/4',fmt(s.lam/4,2)+' m'],['보이는 마디 수',both?cnt+' 개':'아직 안 겹침'],['지금 모양',both?(Math.abs(Math.sin(om*t-k*L/2))<0.05?'일직선 (변위 0)':(Math.abs(Math.sin(om*t-k*L/2))>0.97?'변위 최대':'진동 중')):'—']]);}
+ }};
+
+/* ---------- 공통: 고유 진동 계열 ---------- */
+function makeHarmonic(cfg){
+ const o={cfg,s:{mode:'n',n:1,f:cfg.f0,ph:0,play:true},cv:$('#'+cfg.canvas),
+  setPlay(p){this.s.play=p;const b=$('#go'+cfg.seg.slice(1));b.textContent=p?'⏸ 일시정지':'▶ 시작';b.setAttribute('aria-pressed',p);},
+  allowed(){return cfg.odd?[1,3,5,7,9,11]:[1,2,3,4,5,6];},
+  base(){return cfg.base();},
+  state(){const s=this.s,f1=this.base();if(s.mode==='n')return {n:s.n,f:s.n*f1,amp:1,res:true,f1};
+   let best=null;for(let n=1;n<=40;n++){if(cfg.odd&&n%2===0)continue;const fn=n*f1,a=1/(1+((s.f-fn)/(0.012*fn))**2);if(!best||a>best.amp)best={n,amp:a};}
+   return {n:best.n,f:s.f,amp:best.amp,res:best.amp>0.5,f1};},
+  init(){const s=this.s,self=this;const sid=cfg.seg.slice(1);
+   $('#go'+sid).onclick=()=>this.setPlay(!s.play);s.sumOn=true;s.envOn=true;$('#sm'+sid).onchange=e=>{s.sumOn=e.target.checked;};$('#en'+sid).onchange=e=>{s.envOn=e.target.checked;};$('#rs'+sid).onclick=()=>{s.ph=0;this.setPlay(false);};s.sp=1;$('#sp'+sid).onchange=e=>{s.sp=+e.target.value;};
+   $('#cp'+sid).onchange=e=>{s.comp=e.target.checked;if(s.comp){s.ph=0;}};this.setPlay(true);
+   const nr=$('#'+cfg.nrow);nr.innerHTML=this.allowed().map(n=>`<button class="nbtn${n===1?' on':''}" data-n="${n}">n=${n}</button>`).join('');
+   nr.onclick=e=>{const b=e.target.closest('button');if(!b)return;s.n=+b.dataset.n;nr.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));};
+   seg(cfg.seg,v=>{s.mode=v;$('#'+cfg.nbox).hidden=v!=='n';$('#'+cfg.fbox).hidden=v!=='f';if(v==='f'){s.f=this.base()*0.8;this.syncF();}});
+   const F=$('#'+cfg.fslider);F.addEventListener('input',()=>{s.f=+F.value;this.syncF(false);});
+   const step=d=>{const f1=this.base();let ns=[];for(let n=1;n<=40;n++){if(cfg.odd&&n%2===0)continue;ns.push(n*f1);}const cur=s.f;let t=d>0?ns.find(x=>x>cur+0.5):[...ns].reverse().find(x=>x<cur-0.5);if(t){s.f=t;this.syncF();}};
+   $('#'+cfg.prev).onclick=()=>step(-1);$('#'+cfg.next).onclick=()=>step(1);
+   $('#'+cfg.chips).onclick=e=>{const b=e.target.closest('button');if(!b)return;const n=+b.dataset.n;
+     if(s.mode==='n'){s.n=n;nr.querySelectorAll('button').forEach(x=>x.classList.toggle('on',+x.dataset.n===n));}else{s.f=n*this.base();this.syncF();}};
+   cfg.bind(()=>{if(s.mode==='f')this.syncF();});},
+  syncF(setSlider=true){const F=$('#'+cfg.fslider),f1=this.base();F.max=Math.ceil(f1*(cfg.odd?12:7.5));F.min=Math.max(5,Math.floor(f1*0.3));if(this.s.f>+F.max)this.s.f=+F.max;if(setSlider)F.value=this.s.f;$('#'+cfg.fslider+'o').textContent=fmt(this.s.f,1)+' Hz';},
+  frame(dt){const st=this.state();st.comp=!!this.s.comp;st.sumOn=this.s.sumOn!==false;st.envOn=this.s.envOn!==false;if(this.s.play)this.s.ph+=dt*2*Math.PI*0.9*(this.s.sp||1);this.draw(st);this.panel(st);if(cur===this)soundSet(st.f,this.s.play?0.18*st.amp:0);},
+  panel(st){const key=[st.n,st.f.toFixed(1),st.amp.toFixed(2),this.s.mode,cfg.key()].join();if(this._k===key)return;this._k=key;cfg.panel(st);
+   const ch=$('#'+cfg.chips),ns=this.allowed().slice(0,5);ch.innerHTML=ns.map(n=>`<button class="chip${st.res&&st.n===n?' on':''}" data-n="${n}">f${n<10?['₀','₁','₂','₃','₄','₅','₆','₇','₈','₉'][n]:n} = ${fmt(n*st.f1,1)} Hz</button>`).join('');},
+  draw(st){if(!this.g)this.g=setupCanvas(this.cv);cfg.draw(this.g,st,this.s.ph);}
+ };return o;}
+
+/* ---------- 끝에서의 반사 (펄스) ---------- */
+function makeRefl(secId,tags,note){
+ const host=$('#'+secId),el=document.createElement('div');el.className='card';
+ el.innerHTML=`<h3>끝에서의 반사 — 펄스 하나로 천천히 보기</h3><canvas height="300" style="display:block;width:100%;border-radius:8px;background:var(--stage)"></canvas><div class="bar"><button class="btn" data-a="re">↺ 다시 보기</button><button class="btn" data-a="pp">⏸ 멈춤</button><div class="seg"><button data-v="0.4">아주 느리게</button><button data-v="0.7" class="on">느리게</button><button data-v="1.2">보통</button></div></div><div class="small">${note}</div>`;
+ host.appendChild(el);const cv=el.querySelector('canvas'),pb=el.querySelector('[data-a=pp]');
+ const o={el,t:0,play:true,sp:0.7,g:null,
+  frame(dt){if(!this.g)this.g=setupCanvas(cv);if(this.play)this.t+=dt*this.sp;const TT=6.5;if(this.t>TT+1.5)this.t=0;this.draw(Math.min(this.t,TT));},
+  draw(t){const {ctx,w,h}=this.g;ctx.fillStyle=C.stage;ctx.fillRect(0,0,w,h);const xL=24,xW=w-70,x0=xL+50,v=(xW-x0)/3,A=Math.min(42,h/4-28),wd=Math.max(18,(xW-xL)/22);
+   const g=x=>A*Math.exp(-((x/wd)**2)),c1=x0+v*t,c2=2*xW-c1;
+   [0,1].forEach(r=>{const yb=r*h/2+h/4+14,sg=r?1:-1,inc=x=>-g(x-c1),ref=x=>-sg*g(x-c2),sum=x=>inc(x)+ref(x);
+    if(r){ctx.strokeStyle=C.line;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(0,h/2);ctx.lineTo(w,h/2);ctx.stroke();}
+    label(ctx,r?'자유단 반사 — 끝이 자유롭게 움직인다 → 그대로(같은 위상) 돌아온다':'고정단 반사 — 끝이 고정되어 있다 → 뒤집혀서(위상 반대) 돌아온다',12,r*h/2+20,C.ink,'left','600 13px '+FB);
+    const tg=tags[r];label(ctx,tg||'이 실험에는 없음',w-12,r*h/2+20,tg?C.node:C.muted,'right',(tg?'600 ':'')+'12px '+FB);
+    ctx.strokeStyle=C.muted;ctx.lineWidth=1;ctx.setLineDash([2,4]);ctx.beginPath();ctx.moveTo(xL,yb);ctx.lineTo(xW,yb);ctx.stroke();ctx.setLineDash([]);
+    const plot=(fn,col,lw,d)=>{ctx.strokeStyle=col;ctx.lineWidth=lw;ctx.setLineDash(d||[]);ctx.beginPath();for(let i=0;i<=400;i++){const x=xL+(xW-xL)*i/400,y=yb+fn(x);i?ctx.lineTo(x,y):ctx.moveTo(x,y);}ctx.stroke();ctx.setLineDash([]);};
+    plot(inc,C.w2,2,[6,4]);plot(ref,C.w3,2,[6,4]);plot(sum,C.w1,3.2);
+    if(r===0){ctx.fillStyle=C.muted;ctx.fillRect(xW,yb-48,14,96);ctx.strokeStyle=C.stage;ctx.lineWidth=1;for(let k=-48;k<48;k+=8){ctx.beginPath();ctx.moveTo(xW+2,yb+k+8);ctx.lineTo(xW+12,yb+k);ctx.stroke();}dot(ctx,xW,yb,4,C.node);}
+    else{ctx.strokeStyle=C.muted;ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(xW+6,yb-46);ctx.lineTo(xW+6,yb+40);ctx.stroke();const ye=yb+sum(xW);ctx.strokeStyle=C.anti;ctx.lineWidth=2.5;ctx.beginPath();ctx.ellipse(xW+6,ye,6,4,0,0,7);ctx.stroke();}
+    if(t<2.6)label(ctx,'입사파 →',c1,yb-A-8,C.w2,'center','600 12px '+FB);
+    if(t>3.4)label(ctx,r?'← 반사파 (그대로 위쪽)':'← 반사파 (뒤집혀 아래쪽)',c2,r?yb-A-8:yb+A+18,C.w3,'center','600 12px '+FB);
+    if(t>2.6&&t<3.4)label(ctx,r?'끝에서 보강 → 변위 2배 (배)':'끝에서 상쇄 → 변위 0 (마디)',xW-24,r*h/2+40,C.anti,'right','600 12px '+FB);
+   });
+   label(ctx,'파랑 점선: 입사파   보라 점선: 반사파   빨간 실선: 실제 모양(합)',12,h-8,C.muted,'left','11px '+FB);}
+ };
+ el.querySelector('[data-a=re]').onclick=()=>{o.t=0;o.play=true;pb.textContent='⏸ 멈춤';};
+ pb.onclick=()=>{o.play=!o.play;pb.textContent=o.play?'⏸ 멈춤':'▶ 재생';};
+ const sgm=el.querySelector('.seg');sgm.onclick=e=>{const b=e.target.closest('button');if(!b)return;sgm.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));o.sp=+b.dataset.v;};
+ return o;}
+function makeJunction(hostId){
+ const host=$('#'+hostId),el=document.createElement('div');el.className='card';
+ el.innerHTML=`<h3>굵은 줄과 가는 줄을 이은 경우 — 연결점에서의 반사와 투과</h3><canvas height="360" style="display:block;width:100%;border-radius:8px;background:var(--stage)"></canvas><div class="bar" style="align-items:center"><button class="btn" data-a="re">↺ 다시 보기</button><button class="btn" data-a="pp">⏸ 멈춤</button><div class="seg"><button data-v="0.4">아주 느리게</button><button data-v="0.7" class="on">느리게</button><button data-v="1.2">보통</button></div><label class="chk">굵은 줄 선밀도 <select data-a="mr"><option value="4" selected>가는 줄의 4배</option><option value="9">가는 줄의 9배</option></select></label><label class="chk"><input type="checkbox" data-a="ds" checked> 입사·반사·투과파 점선 보기</label></div><div class="small">장력이 같으면 굵은(무거운) 줄일수록 파동이 느리다 (v = √(장력 ÷ 선밀도)). 연결점 너머 줄이 더 무거우면 고정단 반사처럼, 더 가벼우면 자유단 반사처럼 반사된다.</div>`;
+ host.appendChild(el);const cv=el.querySelector('canvas'),pb=el.querySelector('[data-a=pp]');
+ const o={el,t:0,play:true,sp:0.7,mr:4,dash:true,g:null,
+  frame(dt){if(!this.g)this.g=setupCanvas(cv);if(this.play)this.t+=dt*this.sp;const TT=6.4;if(this.t>TT+1.4)this.t=0;this.draw(Math.min(this.t,TT));},
+  draw(t){const {ctx,w,h}=this.g;ctx.fillStyle=C.stage;ctx.fillRect(0,0,w,h);
+   const k=Math.sqrt(this.mr),xL=20,xR=w-20,xJ=xL+(xR-xL)*0.5,x0=xL+46,A=Math.min(40,h/4-32),wd=Math.max(16,(xR-xL)/28),vThin=(xJ-x0)/2.4;
+   const G=(x,c)=>A*Math.exp(-(((x-c)/wd)**2));
+   [0,1].forEach(r=>{const thinFirst=r===0,v1=thinFirst?vThin:vThin/k,v2=thinFirst?vThin/k:vThin,Z1=thinFirst?1:k,Z2=thinFirst?k:1,R=(Z1-Z2)/(Z1+Z2),T=2*Z1/(Z1+Z2),yb=r*h/2+h/4+8;
+    const c1=x0+v1*t,tH=(xJ-x0)/v1;
+    const inc=x=>x<=xJ?-G(x,c1):null,ref=x=>x<=xJ?-R*G(x,2*xJ-c1):null,tr=x=>x>=xJ?-T*G(xJ+(x-xJ)*v1/v2,c1):null,tot=x=>x<=xJ?inc(x)+ref(x):tr(x);
+    if(r){ctx.strokeStyle=C.line;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(0,h/2);ctx.lineTo(w,h/2);ctx.stroke();}
+    label(ctx,thinFirst?'가는 줄 → 굵은 줄 : 고정단 반사처럼 반사파가 뒤집힌다':'굵은 줄 → 가는 줄 : 자유단 반사처럼 반사파가 그대로 돌아온다',12,r*h/2+20,C.ink,'left','600 13px '+FB);
+    label(ctx,`반사 ${R<0?'−':'+'}${Math.abs(R).toFixed(2)}배 · 투과 +${T.toFixed(2)}배`,w-12,r*h/2+20,C.muted,'right','12px '+FM);
+    const seg=(a,b,lw)=>{ctx.strokeStyle=C.w1;ctx.lineWidth=lw;ctx.lineCap='round';ctx.beginPath();for(let i=0;i<=200;i++){const x=a+(b-a)*i/200,y=yb+tot(x);i?ctx.lineTo(x,y):ctx.moveTo(x,y);}ctx.stroke();ctx.lineCap='butt';};
+    const thin=1.8,thick=5.5;seg(xL,xJ,thinFirst?thin:thick);seg(xJ,xR,thinFirst?thick:thin);
+    if(this.dash){const pl=(fn,a,b,col)=>{ctx.strokeStyle=col;ctx.lineWidth=1.8;ctx.setLineDash([6,4]);ctx.beginPath();for(let i=0;i<=200;i++){const x=a+(b-a)*i/200,y=yb+fn(x);i?ctx.lineTo(x,y):ctx.moveTo(x,y);}ctx.stroke();ctx.setLineDash([]);};
+     pl(inc,xL,xJ,C.w2);pl(ref,xL,xJ,C.w3);pl(tr,xJ,xR,C.node);}
+    dot(ctx,xJ,yb+tot(xJ),5,C.ink);
+    label(ctx,thinFirst?'가는 줄':'굵은 줄',(xL+xJ)/2,yb+44,C.muted,'center','12px '+FB);label(ctx,thinFirst?'굵은 줄':'가는 줄',(xJ+xR)/2,yb+44,C.muted,'center','12px '+FB);label(ctx,'연결점',xJ,yb+44,C.ink,'center','600 11px '+FB);
+    if(t<tH-0.25)label(ctx,'입사파 →',c1,yb-A-8,C.w2,'center','600 12px '+FB);
+    if(t>tH+0.45){const cr=2*xJ-c1,ct=Math.min(xR-60,xJ+(c1-xJ)*v2/v1);
+     label(ctx,R<0?'← 반사파 (뒤집힘)':'← 반사파 (그대로)',Math.max(xL+60,cr),R<0?yb+Math.abs(R)*A+16:yb-Math.abs(R)*A-8,C.w3,'center','600 12px '+FB);
+     label(ctx,v2<v1?'투과파 → (그대로, 폭 좁아짐)':'투과파 → (그대로, 폭 넓어짐)',ct,yb-T*A-8,C.node,'center','600 12px '+FB);}
+   });
+   label(ctx,'빨간 실선: 실제 줄 모양 (선 굵기 = 줄 굵기)   파랑: 입사파   보라: 반사파   초록: 투과파',12,h-8,C.muted,'left','11px '+FB);}
+ };
+ el.querySelector('[data-a=re]').onclick=()=>{o.t=0;o.play=true;pb.textContent='⏸ 멈춤';};
+ pb.onclick=()=>{o.play=!o.play;pb.textContent=o.play?'⏸ 멈춤':'▶ 재생';};
+ el.querySelector('[data-a=mr]').onchange=e=>{o.mr=+e.target.value;o.t=0;};
+ el.querySelector('[data-a=ds]').onchange=e=>{o.dash=e.target.checked;};
+ const sgm=el.querySelector('.seg');sgm.onclick=e=>{const b=e.target.closest('button');if(!b)return;sgm.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));o.sp=+b.dataset.v;};
+ return o;}
+/* ---------- 2. 현악기 ---------- */
+const s2={L:0.65,T:80,mu:0.001};
+const v2=()=>Math.sqrt(s2.T/s2.mu);
+const E2=makeHarmonic({canvas:'c2',nrow:'n2',seg:'m2',nbox:'nbox2',fbox:'fbox2',fslider:'F2',prev:'fp2',next:'fn2',chips:'ch2',f0:150,
+ base:()=>v2()/(2*s2.L),key:()=>[s2.L,s2.T,s2.mu].join(),
+ bind(cb){bindRange('L2',v=>v.toFixed(2)+' m',v=>{s2.L=v;cb();});bindRange('T2',v=>v+' N',v=>{s2.T=v;cb();});$('#M2').onchange=e=>{s2.mu=+e.target.value;cb();};},
+ panel(st){const v=v2(),lam=v/st.f;$('#hud2').textContent=st.res?`n = ${st.n}  ·  배 ${st.n}개, 마디 ${st.n+1}개`:'공명하지 않음 — 거의 진동하지 않는다';
+  kv($('#kv2'),[['줄의 파동 속력 v = √(장력/선밀도)',fmt(v,1)+' m/s'],['진동수 f',fmt(st.f,1)+' Hz','big'],['상태',st.res?`<span class="status res">공명 · n = ${st.n}</span>`:'<span class="status off">공명 아님</span>'],['줄의 정상파 파장 λ',st.res?fmt(2*s2.L/st.n,3)+' m':'—','big'],['기본 진동 파장 2L',fmt(2*s2.L,2)+' m'],['공기 중 소리 파장 (340 ÷ f)',fmt(340/st.f,3)+' m']]);},
+ draw({ctx,w,h},st,ph){ctx.fillStyle=C.stage;ctx.fillRect(0,0,w,h);const Lmax=1.2,ml=44,mr=24,usable=w-ml-mr,len=usable*s2.L/Lmax,x0=ml+(usable-len)/2,x1=x0+len,y0=h/2,A=Math.min(70,h/2-40)*st.amp,n=st.n;
+  ctx.fillStyle=C.muted;ctx.fillRect(x0-10,y0-50,10,100);ctx.fillRect(x1,y0-50,10,100);
+  const yAt=(u,c)=>y0-A*Math.sin(n*Math.PI*u)*c;
+  const fm=st.comp?mkForm(n*Math.PI,A/2,ph,-1):null,formed=!fm||fm.uf>=2;
+  if(formed&&st.envOn){ctx.setLineDash([4,4]);ctx.strokeStyle=C.muted;ctx.lineWidth=1;[1,-1].forEach(c=>{ctx.beginPath();for(let i=0;i<=300;i++){const u=i/300;i?ctx.lineTo(x0+u*len,yAt(u,c)):ctx.moveTo(x0,yAt(u,c));}ctx.stroke();});ctx.setLineDash([]);}
+  if(fm){if(st.sumOn)plotU(ctx,fm.sum,x0,len,y0,C.w1,3.2);plotU(ctx,fm.inc,x0,len,y0,C.w2,2.2,[6,4]);plotU(ctx,fm.ref,x0,len,y0,C.w3,2.2,[6,4]);compLegend(ctx);formStatus(ctx,w,fm.uf,'고정단');label(ctx,'고정단 반사',x1+5,y0+84,C.w3,'center','600 12px '+FB);}
+  else if(st.sumOn){const wob=st.res?0:Math.sin(ph*3.7)*0.6;ctx.strokeStyle=C.w1;ctx.lineWidth=3;ctx.beginPath();for(let i=0;i<=300;i++){const u=i/300,y=yAt(u,Math.cos(ph))+wob*Math.sin(Math.PI*u)*2;i?ctx.lineTo(x0+u*len,y):ctx.moveTo(x0,y);}ctx.stroke();}
+  if(st.amp>0.3&&formed){for(let m=0;m<=n;m++)dot(ctx,x0+len*m/n,y0,4.5,C.node);for(let m=0;m<n;m++){const xa=x0+len*(m+0.5)/n;dot(ctx,xa,y0,3.5,C.anti);if(n<=8)label(ctx,'배',xa,y0+A+18,C.anti);}
+   if(n<=8)for(let m=1;m<n;m++)label(ctx,'마디',x0+len*m/n,y0-12,C.node,'center','11px '+FB);}
+  label(ctx,'마디',x0,y0+66,C.node);label(ctx,'마디',x1,y0+66,C.node);
+  ctx.strokeStyle=C.muted;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(x0,h-22);ctx.lineTo(x1,h-22);ctx.stroke();label(ctx,'L = '+s2.L.toFixed(2)+' m',(x0+x1)/2,h-28,C.muted,'center','12px '+FM);}
+});
+
+/* ---------- 3·4. 관 ---------- */
+const VIEWNOTE={trans:['교과서 그림처럼 공기의 좌우 진동 폭을 위아래 곡선으로 바꿔 그린 모습. 곡선이 크게 벌어진 곳 = 공기가 크게 움직이는 곳(배).','곡선: 공기의 진동 폭'],long:['실제 모습: 공기 입자(점)가 관 방향(좌우)으로 진동한다. 크게 흔들리는 곳이 배, 거의 안 움직이는 곳이 마디이다.','점: 공기 입자의 좌우 진동'],both:['위아래 곡선의 벌어진 폭 = 그 자리 공기 입자가 좌우로 흔들리는 폭. 두 그림의 배·마디 위치가 같다.','곡선 = 점이 흔들리는 폭']};
+function tubeExp(id,closed){const s={L:0.5,K:15,view:'trans'};const V=()=>331.5+0.6*s.K;
+ const setView=v=>{s.view=v;$('#vn'+id).textContent=VIEWNOTE[v][0];$('#hint'+id).textContent=VIEWNOTE[v][1];};setView('trans');seg('vw'+id,setView);
+ return makeHarmonic({canvas:'c'+id,nrow:'n'+id,seg:'m'+id,nbox:'nbox'+id,fbox:'fbox'+id,fslider:'F'+id,prev:'fp'+id,next:'fn'+id,chips:'ch'+id,f0:300,odd:closed,
+  base:()=>V()/((closed?4:2)*s.L),key:()=>[s.L,s.K].join(),
+  bind(cb){bindRange('L'+id,v=>v.toFixed(2)+' m',v=>{s.L=v;cb();});bindRange('K'+id,v=>v+' ℃',v=>{s.K=v;cb();});},
+  panel(st){const lam=(closed?4:2)*s.L/st.n;$('#hud'+id).textContent=st.res?(closed?`n = ${st.n}  ·  반 고리 ${st.n}개`:`n = ${st.n}  ·  고리 ${st.n}개`):'공명하지 않음';
+   kv($('#kv'+id),[['음속 V = 331.5 + 0.6t',fmt(V(),1)+' m/s'],['진동수 f',fmt(st.f,1)+' Hz','big'],['상태',st.res?`<span class="status res">공명 · n = ${st.n}</span>`:'<span class="status off">공명 아님</span>'],['정상파 파장 λ',st.res?fmt(lam,3)+' m':'—','big'],['기본 진동 파장',fmt((closed?4:2)*s.L,2)+' m ('+(closed?'4L':'2L')+')'],['기본 진동수 f₁',fmt(st.f1,1)+' Hz']]);},
+  draw({ctx,w,h},st,ph){ctx.fillStyle=C.stage;ctx.fillRect(0,0,w,h);const ml=40,mr=40,usable=w-ml-mr,len=usable*s.L/1.0,x0=ml+(usable-len)/2,x1=x0+len,y0=h/2-8,R=58,n=st.n,A=(R-8)*st.amp;
+   ctx.fillStyle=C.tube;ctx.fillRect(x0,y0-R,len,2*R);ctx.strokeStyle=C.ink;ctx.lineWidth=2.5;ctx.beginPath();ctx.moveTo(x0,y0-R);ctx.lineTo(x1,y0-R);ctx.moveTo(x0,y0+R);ctx.lineTo(x1,y0+R);ctx.stroke();
+   if(closed){ctx.lineWidth=6;ctx.beginPath();ctx.moveTo(x1,y0-R-3);ctx.lineTo(x1,y0+R+3);ctx.stroke();}
+   const sh=u=>closed?Math.cos(n*Math.PI*u/2):Math.cos(n*Math.PI*u);
+   const showT=s.view!=='long',showL=s.view!=='trans';
+   const fm=st.comp?mkForm(closed?n*Math.PI/2:n*Math.PI,A/2,ph,closed?-1:1):null,formed=!fm||fm.uf>=2;
+   if(fm){if(st.sumOn)plotU(ctx,fm.sum,x0,len,y0,C.w1,3.2);plotU(ctx,fm.inc,x0,len,y0,C.w2,2.2,[6,4]);plotU(ctx,fm.ref,x0,len,y0,C.w3,2.2,[6,4]);compLegend(ctx);formStatus(ctx,w,fm.uf,closed?'고정단':'자유단');label(ctx,closed?'고정단 반사':'자유단 반사',x1,y0+R+36,C.w3,'center','600 12px '+FB);}
+   if(showT&&formed&&st.envOn){ctx.lineWidth=1.2;[1,-1].forEach(c=>{ctx.setLineDash([5,4]);ctx.strokeStyle=C.muted;ctx.beginPath();for(let i=0;i<=300;i++){const u=i/300,y=y0-c*A*sh(u);i?ctx.lineTo(x0+u*len,y):ctx.moveTo(x0,y);}ctx.stroke();});ctx.setLineDash([]);
+   }
+   if(showT&&!fm&&st.sumOn){ctx.lineWidth=2.6;ctx.strokeStyle=C.w1;ctx.beginPath();for(let i=0;i<=300;i++){const u=i/300,y=y0-A*sh(u)*Math.cos(ph);i?ctx.lineTo(x0+u*len,y):ctx.moveTo(x0,y);}ctx.stroke();}
+   if(showL){const cols=Math.max(12,Math.round(len/14)),rows=5,dmax=Math.min(14,len/cols*0.9);
+   for(let i=0;i<cols;i++){const u=(i+0.5)/cols,dx=fm?(A>0?dmax*st.amp*(fm.sum(u)||0)/A:0):dmax*st.amp*sh(u)*Math.cos(ph);for(let r=0;r<rows;r++){const yy=y0-R+12+r*(2*R-24)/(rows-1);dot(ctx,x0+u*len+dx,yy,s.view==='both'?1.7:2.4,C.w2);}}}
+   if(st.amp>0.3&&formed){const pts=[];for(let m=0;m<=40;m++){const un=closed?(2*m+1)/n:(m+0.5)/n,ua=closed?2*m/n:m/n;if(un<=1.0001)pts.push([un,'마디',C.node]);if(ua<=1.0001)pts.push([ua,'배',C.anti]);}
+    pts.forEach(([u,t,c])=>{const x=x0+u*len;dot(ctx,x,y0,4,c);if(n<=7)label(ctx,t,x,y0+R+18,c);});}
+   label(ctx,'열린 끝',x0,y0-R-10,C.muted,'center','11px '+FB);label(ctx,closed?'막힌 끝':'열린 끝',x1,y0-R-10,C.muted,'center','11px '+FB);
+   ctx.strokeStyle=C.muted;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(x0,h-20);ctx.lineTo(x1,h-20);ctx.stroke();label(ctx,'L = '+s.L.toFixed(2)+' m',(x0+x1)/2,h-26,C.muted,'center','12px '+FM);}
+ });}
+const E3=tubeExp(3,false), E4=tubeExp(4,true);
+const E6={g:null,r:makeRefl('rf6',['예: 줄의 양 끝 · 폐관의 막힌 끝','예: 관의 열린 끝'],'빨간 실선이 실제로 보이는 모양이다. 펄스가 끝에 닿는 순간 ⏸ 멈춤을 눌러 위·아래 줄을 비교해 보자.'),init(){},frame(dt){if(!this.g){this.r.g=null;this.j.g=null;this.g=1;}this.r.frame(dt);this.j.frame(dt);if(audio.on&&audio.gain)audio.gain.gain.setTargetAtTime(0,audio.ctx.currentTime,0.05);}};
+E6.j=makeJunction('rf6b');
+
+/* ---------- 5. 기주 공명 ---------- */
+const E5={s:{f:512,unk:false,uf:0,K:15,y:2,auto:false,rec:[],ph:0,shown:false},e:0.6,wd:0.45,cv:$('#c5'),
+ V(){return 331.5+0.6*this.s.K;},F(){return this.s.unk?this.s.uf:this.s.f;},lam(){return this.V()/this.F()*100;},
+ I(y){const lam=this.lam();let best=0;for(let m=1;m<12;m++){const yr=(2*m-1)*lam/4-this.e;best=Math.max(best,1/(1+((y-yr)/this.wd)**2));}return best;},
+ init(){const s=this.s;
+  $('#F5').onchange=e=>{const v=e.target.value;if(v==='u'){s.unk=true;s.uf=Math.round(380+Math.random()*520);s.shown=false;}else{s.unk=false;s.f=+v;}s.rec=[];this.table();};
+  bindRange('K5',v=>v+' ℃',v=>{s.K=v;this.table();});
+  this.Y=bindRange('Y5',v=>v.toFixed(1)+' cm',v=>s.y=v);
+  s.vs=2;s.ar=false;s.pI=0;s.ppI=0;$('#vs5').onchange=e=>{s.vs=+e.target.value;};$('#ar5').onchange=e=>{s.ar=e.target.checked;};
+  $('#auto5').onclick=()=>{s.auto=!s.auto;if(s.auto&&s.y>=94)s.y=0;$('#auto5').textContent=s.auto?'⏸ 멈추기':'▼ 물통 천천히 내리기';};
+  this.addRec=y=>{y=+y.toFixed(1);if(s.rec.some(r=>Math.abs(r-y)<1))return;if(s.rec.length>=6)s.rec.shift();s.rec.push(y);s.rec.sort((a,b)=>a-b);this.table();};
+  $('#rec5').onclick=()=>{const y=+s.y.toFixed(1);if(s.rec.length>=6)s.rec.shift();s.rec.push(y);s.rec.sort((a,b)=>a-b);this.table();};
+  $('#clr5').onclick=()=>{s.rec=[];this.table();};
+  $('#ans5').onclick=()=>{s.shown=true;this.table();};
+  this.table();},
+ table(){const s=this.s,r=s.rec;let html='',ds=[];r.forEach((y,i)=>{const d=i?y-r[i-1]:null;if(d!==null)ds.push(d);html+=`<tr><td>${i+1}</td><td>${y.toFixed(1)}</td><td>${d===null?'—':d.toFixed(1)}</td><td>${d===null?'—':(2*d).toFixed(1)+' cm'}</td></tr>`;});
+  $('#tb5').innerHTML=html||'<tr><td colspan="4" style="text-align:left;font-family:inherit;color:var(--muted)">소리가 크게 들리는 위치에서 ‘이 위치 기록’을 누른다.</td></tr>';
+  const lam=ds.length?2*ds.reduce((a,b)=>a+b,0)/ds.length:NaN,V=this.V();
+  const rows=[['측정한 파장 λ (평균)',ds.length?fmt(lam,1)+' cm':'기록 2개 이상 필요','big']];
+  if(!s.unk){rows.push(['음속 v = fλ',ds.length?fmt(s.f*lam/100,1)+' m/s':'—','big']);rows.push(['이론 음속 (331.5 + 0.6t)',fmt(V,1)+' m/s']);}
+  else{rows.push(['진동수 f = V/λ',ds.length?fmt(V/(lam/100),0)+' Hz':'—','big']);rows.push(['음속 V (온도로 계산)',fmt(V,1)+' m/s']);rows.push(['실제 진동수',s.shown?s.uf+' Hz':'정답 확인을 누르면 보인다']);}
+  if(r.length)rows.push(['첫 위치 y₁ vs λ/4',`${r[0].toFixed(1)} cm vs ${ds.length?fmt(lam/4,1):'?'} cm`]);
+  kv($('#kv5'),rows);$('#ans5').hidden=!s.unk;},
+ frame(dt){const s=this.s;if(s.auto){const sub=Math.max(1,Math.ceil(dt*s.vs/0.05));for(let k=0;k<sub;k++){s.y+=dt*s.vs/sub;if(s.ar){const I=this.I(s.y);if(s.pI>0.8&&s.pI>=I&&s.pI>s.ppI)this.addRec(s.py);s.ppI=s.pI;s.pI=I;s.py=s.y;}}if(s.y>=95){s.y=95;s.auto=false;$('#auto5').textContent='▼ 물통 천천히 내리기';}this.Y.value=s.y;$('#Y5o').textContent=s.y.toFixed(1)+' cm';}
+  s.ph+=dt*2*Math.PI*0.9;const I=this.I(s.y);$('#mtr5').style.width=(I*100).toFixed(0)+'%';
+  $('#st5').innerHTML=I>0.8?'<span class="loud">소리가 크게 들린다! (공명)</span>':I>0.35?'소리가 커지고 있다…':'소리가 작다';
+  $('#hud5').textContent=`y = ${s.y.toFixed(1)} cm`;if(cur===this)soundSet(this.F(),0.015+0.2*I);this.draw(I);},
+ draw(I){const {ctx,w,h}=this.g||(this.g=setupCanvas(this.cv));ctx.fillStyle=C.stage;ctx.fillRect(0,0,w,h);
+  const top=70,bot=h-24,cx=Math.min(w/2,150),R=26,H=bot-top,cm=H/100,s=this.s,yw=top+s.y*cm,lam=this.lam();
+  // 소리굽쇠
+  ctx.strokeStyle=C.ink;ctx.lineWidth=4;const vib=Math.sin(s.ph*6)*1.5;ctx.beginPath();ctx.moveTo(cx-10-vib,top-48);ctx.lineTo(cx-10-vib,top-22);ctx.quadraticCurveTo(cx-10,top-12,cx,top-12);ctx.quadraticCurveTo(cx+10,top-12,cx+10+vib,top-22);ctx.lineTo(cx+10+vib,top-48);ctx.moveTo(cx,top-12);ctx.lineTo(cx,top-2);ctx.stroke();
+  label(ctx,s.unk?'? Hz':s.f+' Hz',cx+24,top-30,C.muted,'left','12px '+FM);
+  // 관
+  ctx.fillStyle=C.tube;ctx.fillRect(cx-R,top,2*R,H);ctx.fillStyle=C.water;ctx.fillRect(cx-R,yw,2*R,bot-yw);
+  ctx.strokeStyle=C.ink;ctx.lineWidth=2.5;ctx.beginPath();ctx.moveTo(cx-R,top);ctx.lineTo(cx-R,bot);ctx.lineTo(cx+R,bot);ctx.lineTo(cx+R,top);ctx.stroke();
+  // 눈금
+  ctx.strokeStyle=C.muted;ctx.lineWidth=1;for(let c=0;c<=100;c+=5){const yy=top+c*cm,L=c%10?6:12;ctx.beginPath();ctx.moveTo(cx+R+4,yy);ctx.lineTo(cx+R+4+L,yy);ctx.stroke();if(c%10===0)label(ctx,c+'',cx+R+20,yy+4,C.muted,'left','11px '+FM);}
+  label(ctx,'cm',cx+R+20,top-6,C.muted,'left','11px '+FM);
+  // 정상파
+  if(I>0.05){const amp=(R-5)*I,sh=z=>Math.cos(2*Math.PI*(z+this.e)/lam);ctx.lineWidth=1.8;[[1,[]],[-1,[5,4]]].forEach(([c,d])=>{ctx.setLineDash(d);ctx.strokeStyle=C.w1;ctx.beginPath();for(let i=0;i<=200;i++){const z=s.y*i/200,x=cx+c*amp*sh(z)*(d.length?1:Math.cos(s.ph)),yy=top+z*cm;i?ctx.lineTo(x,yy):ctx.moveTo(x,yy);}ctx.stroke();});ctx.setLineDash([]);
+   if(I>0.6){for(let m=0;m<12;m++){const zn=(2*m+1)*lam/4-this.e,za=m*lam/2-this.e;if(zn>=0&&zn<=s.y+0.5){dot(ctx,cx,top+zn*cm,4,C.node);label(ctx,'마디',cx-R-8,top+zn*cm+4,C.node,'right','11px '+FB);}if(za>=0&&za<=s.y){dot(ctx,cx,top+za*cm,3.5,C.anti);label(ctx,'배',cx-R-8,top+za*cm+4,C.anti,'right','11px '+FB);}}}}
+  // 기록 표시
+  s.rec.forEach(y=>{const yy=top+y*cm;ctx.strokeStyle=C.accent;ctx.setLineDash([3,3]);ctx.beginPath();ctx.moveTo(cx-R-30,yy);ctx.lineTo(cx-R,yy);ctx.stroke();ctx.setLineDash([]);});
+  label(ctx,'수면',cx-R-8,yw+14,C.muted,'right','11px '+FB);}
+};
+
+/* ---------- 탭·루프 ---------- */
+const EX={form:E1,string:E2,open:E3,closed:E4,column:E5,reflect:E6};let cur=null;
+Object.values(EX).forEach(e=>e.init());
+function show(name){if(!EX[name])name='form';$$('.exp').forEach(s=>s.hidden=s.id!=='sec-'+name);$$('.tab').forEach(t=>t.setAttribute('aria-selected',t.dataset.tab===name));cur=EX[name];cur.g=null;cur._k=null;if(audio.on&&audio.gain)audio.gain.gain.setTargetAtTime(0,audio.ctx.currentTime,0.03);try{localStorage.setItem('sw-tab',name);}catch(e){}}
+$$('.tab').forEach(t=>t.onclick=()=>{location.hash=t.dataset.tab;});
+window.addEventListener('hashchange',()=>show(location.hash.slice(1)));
+let start=location.hash.slice(1);if(!EX[start]){try{start=localStorage.getItem('sw-tab')||'form';}catch(e){start='form';}}
+show(start);
+window.addEventListener('resize',()=>{if(cur){cur.g=null;}});
+let last=performance.now();
+function loop(now){const dt=Math.min(0.05,(now-last)/1000);last=now;if(cur)cur.frame(dt);requestAnimationFrame(loop);}requestAnimationFrame(loop);
+})();
+</script>
+
+</body>
+</html>
